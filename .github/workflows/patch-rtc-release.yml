@@ -11,7 +11,7 @@ name: RTC patch release
 on:
   push:
     tags:
-      - "rtc-v*+patch.*"
+      - 'rtc-v*\+patch.*'
   workflow_dispatch:
 
 permissions:
