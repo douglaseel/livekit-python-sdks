@@ -1361,27 +1361,68 @@ class IceServer(google.protobuf.message.Message):
 global___IceServer = IceServer
 
 @typing.final
+class IceForwarder(google.protobuf.message.Message):
+    """A UDP forwarder in front of this participant that all media goes through.
+    It routes each connectivity check by its ICE username fragment and delivers
+    it to one local port. When set: every local description carries `ufrag` and
+    `pwd`, ICE gathers on `local_port` alone and without TCP, the room sees only
+    `addresses` as candidates, remote candidates and ICE servers are not used,
+    the server is asked for full ICE, and the connect fails without single peer
+    connection mode.
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    ADDRESSES_FIELD_NUMBER: builtins.int
+    UFRAG_FIELD_NUMBER: builtins.int
+    PWD_FIELD_NUMBER: builtins.int
+    LOCAL_PORT_FIELD_NUMBER: builtins.int
+    ufrag: builtins.str
+    pwd: builtins.str
+    local_port: builtins.int
+    @property
+    def addresses(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]:
+        """"ip:port"; an IPv6 address in brackets"""
+
+    def __init__(
+        self,
+        *,
+        addresses: collections.abc.Iterable[builtins.str] | None = ...,
+        ufrag: builtins.str | None = ...,
+        pwd: builtins.str | None = ...,
+        local_port: builtins.int | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing.Literal["local_port", b"local_port", "pwd", b"pwd", "ufrag", b"ufrag"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["addresses", b"addresses", "local_port", b"local_port", "pwd", b"pwd", "ufrag", b"ufrag"]) -> None: ...
+
+global___IceForwarder = IceForwarder
+
+@typing.final
 class RtcConfig(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     ICE_TRANSPORT_TYPE_FIELD_NUMBER: builtins.int
     CONTINUAL_GATHERING_POLICY_FIELD_NUMBER: builtins.int
     ICE_SERVERS_FIELD_NUMBER: builtins.int
+    ICE_FORWARDER_FIELD_NUMBER: builtins.int
     ice_transport_type: global___IceTransportType.ValueType
     continual_gathering_policy: global___ContinualGatheringPolicy.ValueType
     @property
     def ice_servers(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___IceServer]:
         """empty fallback to default"""
 
+    @property
+    def ice_forwarder(self) -> global___IceForwarder: ...
     def __init__(
         self,
         *,
         ice_transport_type: global___IceTransportType.ValueType | None = ...,
         continual_gathering_policy: global___ContinualGatheringPolicy.ValueType | None = ...,
         ice_servers: collections.abc.Iterable[global___IceServer] | None = ...,
+        ice_forwarder: global___IceForwarder | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing.Literal["continual_gathering_policy", b"continual_gathering_policy", "ice_transport_type", b"ice_transport_type"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["continual_gathering_policy", b"continual_gathering_policy", "ice_servers", b"ice_servers", "ice_transport_type", b"ice_transport_type"]) -> None: ...
+    def HasField(self, field_name: typing.Literal["continual_gathering_policy", b"continual_gathering_policy", "ice_forwarder", b"ice_forwarder", "ice_transport_type", b"ice_transport_type"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["continual_gathering_policy", b"continual_gathering_policy", "ice_forwarder", b"ice_forwarder", "ice_servers", b"ice_servers", "ice_transport_type", b"ice_transport_type"]) -> None: ...
 
 global___RtcConfig = RtcConfig
 

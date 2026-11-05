@@ -93,6 +93,39 @@ EventTypes = Literal[
 
 
 @dataclass
+class IceCredentials:
+    """The ICE username fragment and password of a local description."""
+
+    ufrag: str
+    pwd: str = field(repr=False)
+
+
+@dataclass
+class IceForwarder:
+    """A UDP forwarder in front of this participant that all media goes through.
+
+    The forwarder routes each connectivity check by its ICE username fragment and
+    delivers it to one local port. With a forwarder:
+
+    - every local description carries ``credentials``, also across ICE restarts;
+    - ICE gathers on ``local_port`` alone, and without TCP;
+    - the room sees only ``addresses`` as this participant's candidates;
+    - remote candidates and ICE servers, also those the server offers, are not
+      used, so this participant never opens a path of its own;
+    - the server is asked for full ICE;
+    - the connect fails unless single peer connection mode is active.
+    """
+
+    addresses: list[str]
+    """The forwarder's public addresses as ``"ip:port"`` (an IPv6 address in brackets).
+    At least one."""
+    credentials: IceCredentials
+    """The credentials every local description carries."""
+    local_port: int
+    """The local UDP port the forwarder delivers to."""
+
+
+@dataclass
 class RtcConfiguration:
     ice_transport_type: proto_room.IceTransportType.ValueType = (
         proto_room.IceTransportType.TRANSPORT_ALL
@@ -105,6 +138,8 @@ class RtcConfiguration:
     ice_servers: list[proto_room.IceServer] = field(default_factory=list)
     """List of ICE servers for STUN/TURN. When empty, it uses the default ICE servers provided by
     the SFU."""
+    ice_forwarder: IceForwarder | None = None
+    """Send all media through this forwarder. See :class:`IceForwarder`."""
 
 
 @dataclass
@@ -549,6 +584,13 @@ class Room(EventEmitter[EventTypes]):
                 options.rtc_config.continual_gathering_policy
             )
             req.connect.options.rtc_config.ice_servers.extend(options.rtc_config.ice_servers)
+            fwd = options.rtc_config.ice_forwarder
+            if fwd is not None:
+                proto_fwd = req.connect.options.rtc_config.ice_forwarder
+                proto_fwd.addresses.extend(fwd.addresses)
+                proto_fwd.ufrag = fwd.credentials.ufrag
+                proto_fwd.pwd = fwd.credentials.pwd
+                proto_fwd.local_port = fwd.local_port
 
         # subscribe before connecting so we don't miss any events
         # Media streams have their own subscriptions. Keep other events, including
