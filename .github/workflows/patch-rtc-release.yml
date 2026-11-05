@@ -1,0 +1,102 @@
+# Builds the livekit-rtc wheels for the platforms this fork ships, and
+# publishes them as a GitHub Release.
+#
+# A release is a tag "rtc-v<livekit.rtc __version__>", for example
+# "rtc-v1.1.20+patch.1". The wheels embed the livekit-ffi build that the
+# rust-sdks submodule's download_ffi.py fetches from that fork's releases, so
+# that FFI release must exist first. workflow_dispatch builds without
+# publishing.
+name: RTC patch release
+
+on:
+  push:
+    tags:
+      - "rtc-v*+patch.*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PACKAGE_DIR: ./livekit-rtc
+
+jobs:
+  build_wheels:
+    name: Build wheels (${{ matrix.os }} ${{ matrix.archs }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            archs: x86_64
+          - os: ubuntu-24.04-arm
+            archs: aarch64
+          - os: macos-latest
+            archs: arm64
+    defaults:
+      run:
+        working-directory: ${{ env.PACKAGE_DIR }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          submodules: true
+
+      - name: Check the tag matches the package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' livekit/rtc/version.py)
+          test "${GITHUB_REF_NAME}" = "rtc-v${version}" || {
+            echo "tag ${GITHUB_REF_NAME} does not match package version ${version}"; exit 1; }
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        id: setup-python
+        with:
+          python-version: "3.11"
+
+      - name: Build wheels
+        run: pipx run --python '${{ steps.setup-python.outputs.python-path }}' cibuildwheel==3.3.1 --output-dir dist
+        env:
+          CIBW_ARCHS: ${{ matrix.archs }}
+
+      - name: Smoke test
+        run: |
+          python -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install dist/*.whl
+          cd /tmp && /tmp/smoke/bin/python -c "
+          from livekit import rtc
+          from livekit.rtc._ffi_client import FfiClient
+          FfiClient.instance  # loads the bundled liblivekit_ffi
+          rtc.RtcConfiguration(ice_forwarder=rtc.IceForwarder(
+              addresses=['203.0.113.10:443'],
+              credentials=rtc.IceCredentials(ufrag='abcd', pwd='a' * 22),
+              local_port=50001))
+          print('ok', rtc.__version__)
+          "
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: rtc-wheels-${{ matrix.os }}-${{ matrix.archs }}
+          path: livekit-rtc/dist/*.whl
+
+  release:
+    name: Publish release
+    needs: build_wheels
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/*.whl \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes "livekit-rtc wheels built from ${GITHUB_SHA} for linux x86_64, linux aarch64 and macOS arm64."
