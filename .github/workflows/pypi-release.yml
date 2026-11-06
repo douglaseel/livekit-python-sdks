@@ -73,7 +73,8 @@ jobs:
         run: |
           python -m venv /tmp/smoke
           /tmp/smoke/bin/pip install dist/*.whl
-          /tmp/smoke/bin/pip show "${DIST_NAME}" | head -2
+          # grep, not head: head closes the pipe early and pipefail fails the step.
+          /tmp/smoke/bin/pip show "${DIST_NAME}" | grep -E "^(Name|Version):"
           cd /tmp && /tmp/smoke/bin/python -c "
           from livekit import rtc
           from livekit.rtc._ffi_client import FfiClient
