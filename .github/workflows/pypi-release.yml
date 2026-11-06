@@ -1,9 +1,12 @@
 # Builds the reactor-livekit-transport-client wheels (this fork's build of
 # livekit-rtc) and publishes them to PyPI and as a GitHub Release.
 #
-# A release is a tag "reactor-rtc-v<livekit.rtc __version__>", for example
-# "reactor-rtc-v1.2.0.post1". The version is the upstream release this branch is
-# based on, with a .postN: PyPI takes no local version (+...). The wheels embed
+# A release is a tag "reactor-rtc-v<upstream version>-pN", for example
+# "reactor-rtc-v1.2.0-p1": the upstream release this branch is based on, and
+# this fork's Nth patch release of it. PEP 440 has no "-pN" spelling, so the
+# package version (livekit.rtc __version__, and PyPI) is the same release
+# written as a post-release, 1.2.0.post1; the tag check maps one to the other.
+# The wheels embed
 # the livekit-ffi build that the rust-sdks submodule's download_ffi.py fetches
 # from reactor-team/livekit-rust-sdks releases, so that FFI release must exist
 # first. workflow_dispatch builds and smoke-tests without publishing.
@@ -16,7 +19,7 @@ name: PyPI release
 on:
   push:
     tags:
-      - "reactor-rtc-v*"
+      - "reactor-rtc-v*-p*"
   workflow_dispatch:
 
 permissions:
@@ -52,8 +55,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           version=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' livekit/rtc/version.py)
-          test "${GITHUB_REF_NAME}" = "reactor-rtc-v${version}" || {
-            echo "tag ${GITHUB_REF_NAME} does not match package version ${version}"; exit 1; }
+          tagged=$(echo "${version}" | sed -E 's/\.post([0-9]+)$/-p\1/')
+          test "${GITHUB_REF_NAME}" = "reactor-rtc-v${tagged}" || {
+            echo "tag ${GITHUB_REF_NAME} does not match package version ${version} (tag reactor-rtc-v${tagged})"; exit 1; }
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         id: setup-python
