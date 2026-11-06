@@ -1,17 +1,22 @@
-# Builds the livekit-rtc wheels for the platforms this fork ships, and
-# publishes them as a GitHub Release.
+# Builds the reactor-livekit-transport-client wheels (this fork's build of
+# livekit-rtc) and publishes them to PyPI and as a GitHub Release.
 #
-# A release is a tag "rtc-v<livekit.rtc __version__>", for example
-# "rtc-v1.1.20+patch.1". The wheels embed the livekit-ffi build that the
-# rust-sdks submodule's download_ffi.py fetches from that fork's releases, so
-# that FFI release must exist first. workflow_dispatch builds without
-# publishing.
-name: RTC patch release
+# A release is a tag "reactor-rtc-v<livekit.rtc __version__>", for example
+# "reactor-rtc-v1.2.0.post1". The version is the upstream release this branch is
+# based on, with a .postN: PyPI takes no local version (+...). The wheels embed
+# the livekit-ffi build that the rust-sdks submodule's download_ffi.py fetches
+# from reactor-team/livekit-rust-sdks releases, so that FFI release must exist
+# first. workflow_dispatch builds and smoke-tests without publishing.
+#
+# PyPI publishing is trusted publishing (OIDC): the PyPI project
+# reactor-livekit-transport-client trusts this repository, this workflow file
+# and the "pypi" environment. No token is stored here.
+name: PyPI release
 
 on:
   push:
     tags:
-      - 'rtc-v*\+patch.*'
+      - "reactor-rtc-v*"
   workflow_dispatch:
 
 permissions:
@@ -19,6 +24,7 @@ permissions:
 
 env:
   PACKAGE_DIR: ./livekit-rtc
+  DIST_NAME: reactor-livekit-transport-client
 
 jobs:
   build_wheels:
@@ -46,7 +52,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           version=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' livekit/rtc/version.py)
-          test "${GITHUB_REF_NAME}" = "rtc-v${version}" || {
+          test "${GITHUB_REF_NAME}" = "reactor-rtc-v${version}" || {
             echo "tag ${GITHUB_REF_NAME} does not match package version ${version}"; exit 1; }
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
@@ -63,6 +69,7 @@ jobs:
         run: |
           python -m venv /tmp/smoke
           /tmp/smoke/bin/pip install dist/*.whl
+          /tmp/smoke/bin/pip show "${DIST_NAME}" | head -2
           cd /tmp && /tmp/smoke/bin/python -c "
           from livekit import rtc
           from livekit.rtc._ffi_client import FfiClient
@@ -80,15 +87,19 @@ jobs:
           path: livekit-rtc/dist/*.whl
 
   # Publishes once the Linux wheels exist, also when the macOS build did not
-  # run: hosted macOS arm64 runners are often out of capacity, and the Linux
-  # wheels are the ones deployments use. The macOS wheel is added when present.
-  release:
-    name: Publish release
+  # run: the Linux wheels are the ones deployments use. A macOS wheel built
+  # later is added to the same version by running the tag again
+  # (skip-existing keeps the files already uploaded).
+  pypi:
+    name: Publish to PyPI
     needs: build_wheels
     if: ${{ always() && startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/reactor-livekit-transport-client
     permissions:
-      contents: write
+      id-token: write
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -100,6 +111,24 @@ jobs:
           ls dist
           ls dist/*manylinux*x86_64*.whl dist/*manylinux*aarch64*.whl
 
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: dist
+          skip-existing: true
+
+  github_release:
+    name: Publish GitHub release
+    needs: pypi
+    if: ${{ always() && needs.pypi.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          path: dist
+          merge-multiple: true
+
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -107,4 +136,4 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" dist/*.whl \
             --repo "${GITHUB_REPOSITORY}" \
             --title "${GITHUB_REF_NAME}" \
-            --notes "livekit-rtc wheels built from ${GITHUB_SHA} for linux x86_64, linux aarch64 and macOS arm64."
+            --notes "${DIST_NAME} wheels built from ${GITHUB_SHA}: https://pypi.org/project/${DIST_NAME}/"

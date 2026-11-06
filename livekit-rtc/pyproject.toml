@@ -7,9 +7,9 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "livekit"
+name = "reactor-livekit-transport-client"
 dynamic = ["version"]
-description = "Python Real-time SDK for LiveKit"
+description = "LiveKit's Python real-time SDK, with an ICE forwarder option for room connections (a Reactor build of the livekit package)"
 readme = "README.md"
 requires-python = ">=3.9.0"
 license = "Apache-2.0"
@@ -41,7 +41,8 @@ dependencies = [
 [project.urls]
 Documentation = "https://docs.livekit.io"
 Website = "https://livekit.io/"
-Source = "https://github.com/livekit/python-sdks/"
+Source = "https://github.com/reactor-team/livekit-python-sdks/"
+Upstream = "https://github.com/livekit/python-sdks/"
 
 [tool.setuptools.dynamic]
 version = { attr = "livekit.rtc.version.__version__" }
